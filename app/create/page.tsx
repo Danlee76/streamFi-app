@@ -86,6 +86,7 @@ const DURATION_PRESETS = [
 ] as const;
 
 const CREATE_STREAM_TIMEOUT_MS = 60_000;
+const DRAFT_KEY = 'conduit:create-stream-draft';
 
 /**
  * Timeout message for the create pipeline. It is rendered inline in the form,
@@ -133,6 +134,25 @@ export default function CreatePage() {
       acknowledgeSelfRecipient: false,
     },
   });
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (saved) {
+        const draft = JSON.parse(saved) as Partial<FormValues>;
+        for (const key of ['recipient', 'token', 'depositAmount', 'durationSeconds', 'clawback'] as const) {
+          if (draft[key] !== undefined) setValue(key, draft[key] as never);
+        }
+      }
+    } catch { /* stale or unavailable storage is non-fatal */ }
+  }, [setValue]);
+
+  useEffect(() => {
+    const subscription = watch((values) => {
+      try { localStorage.setItem(DRAFT_KEY, JSON.stringify(values)); } catch { /* storage is optional */ }
+    });
+    return () => subscription.unsubscribe();
+  }, [watch]);
 
   const deposit  = watch('depositAmount');
   const duration = watch('durationSeconds');
@@ -389,6 +409,7 @@ export default function CreatePage() {
       await refreshStreamData();
 
       setTxHash(hash);
+      try { localStorage.removeItem(DRAFT_KEY); } catch { /* storage is optional */ }
       // #362 — createStream now decodes the confirmed transaction's return
       // value, so we can deep-link straight to the new stream instead of
       // redirecting to /streams and hoping the user finds it. Fall back to

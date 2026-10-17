@@ -14,6 +14,22 @@ export interface TokenMeta {
   logoUrl?: string;
 }
 
+export interface StellarExpertVerification { verified: boolean; token?: TokenMeta; error?: string; }
+
+/** Verify an asset against Stellar Expert's public token directory. */
+export async function verifyTokenAgainstStellarExpert(code: string, issuer: string, network: 'mainnet' | 'testnet' = 'mainnet', options: { signal?: AbortSignal } = {}): Promise<StellarExpertVerification> {
+  if (!code || !issuer) return { verified: false, error: 'Token code and issuer are required' };
+  const url = `https://api.stellar.expert/explorer/${network}/asset/${encodeURIComponent(code)}-${encodeURIComponent(issuer)}`;
+  try {
+    const response = await fetch(url, { signal: options.signal, headers: { Accept: 'application/json' } });
+    if (!response.ok) return { verified: false, error: `Stellar Expert returned ${response.status}` };
+    const data = await response.json() as { asset?: { code?: string; issuer?: string; name?: string; decimals?: number; image?: string } };
+    const asset = data.asset;
+    if (!asset?.code || asset.issuer !== issuer) return { verified: false, error: 'Asset was not found in Stellar Expert' };
+    return { verified: true, token: { symbol: asset.code, name: asset.name ?? asset.code, decimals: asset.decimals ?? 7, address: issuer, logoUrl: asset.image } };
+  } catch (error) { return { verified: false, error: error instanceof Error ? error.message : 'Token verification failed' }; }
+}
+
 export const TOKENS_TESTNET: TokenMeta[] = [
   {
     symbol: 'XLM',
